@@ -8,7 +8,6 @@
 #  watermark a jpg file with the file stored in the WM variable
 #
 #  The watermark is 750x50 pixels, this matches a photo with width 2560 pixels (to my liking)
-#  The script scales the watermark to other widths
 #
 #  Got some very good inspiration here: https://amytabb.com/til/photography/2021/01/23/image-magick-watermark/
 #  thanks :-)
