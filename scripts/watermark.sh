@@ -1,5 +1,10 @@
 #! /bin/bash
 #
+# License
+# All scripts are licensed under the 
+# GNU Public License v3.0 or later.
+# See license details here: https://www.gnu.org/licenses/gpl-3.0.html
+#
 #  watermark a jpg file with the file stored in the WM variable
 #
 #  The watermark is 750x50 pixels, this matches a photo with width 2560 pixels (to my liking)
