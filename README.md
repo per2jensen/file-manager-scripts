@@ -8,7 +8,7 @@ All scripts are licensed under the (GNU Public License v3.0 or later)[https://ww
 
 # Requirements
 - exiftool
-
+- imagemagick
 
 # Location
 The scripts live here: ~/.local/share/nautilus/scripts
