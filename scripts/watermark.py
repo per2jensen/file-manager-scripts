@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# License
+# GNU Public License v3.0 or later.
+# See license details here: https://www.gnu.org/licenses/gpl-3.0.html
+
 from PIL import Image
 
 import argparse
