@@ -16,12 +16,10 @@ WM_SATURATION=80
 
 watermarks = {}
 
-
 logging.basicConfig(
     filename="/tmp/watermark.py.log",
     level=logging.DEBUG,
     format="%(asctime)s:%(levelname)s:%(message)s")
-
 
 def rename_file(f):
     filename = f.rsplit(".", 1)
@@ -53,8 +51,8 @@ def main():
                 completed_process = subprocess.run([
                 "convert",  "-size",  "{}x{}".format(wm_width, wm_height),  "xc:transparent",  "-font", "NewCenturySchlbk-Italic",
                 "-pointsize", "{}".format(pktsize), "-gravity", "east",
-                "-fill", "lightgrey", "-draw", 'text +0+0 "© Per Jensen, License: CC BY-NC-SA 4.0"',
-                "-fill", "darkgrey",  "-draw", 'text -2+0 "© Per Jensen, License: CC BY-NC-SA 4.0"',
+                "-fill", "lightgrey", "-draw", "text +0+0 \"{}\"".format(WATERMARK),
+                "-fill", "darkgrey",  "-draw", "text -2+0 \"{}\"".format(WATERMARK),
                 watermark],  check=True, capture_output=True, encoding="utf-8")
                 logging.debug(completed_process)
                 watermarks[pktsize] = watermark
@@ -69,7 +67,7 @@ def main():
 
         try:
             new_filename = rename_file(file)
-            logging.debug("watermarking: file: '{}'".format(file))
+            logging.info("watermarking: file: '{}'".format(file))
             completed_process = subprocess.run([
             "composite", watermark, file,
             "-watermark", "{}x{}".format(WM_BRIGHTNESS, WM_SATURATION),
@@ -84,7 +82,6 @@ def main():
             logging.error(f"{exc}")
         except subprocess.TimeoutExpired as exc:
             logging.error(f"Process timed out.\n{exc}")
-
 
 if __name__ == '__main__':
     main()
