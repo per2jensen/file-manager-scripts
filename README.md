@@ -1,10 +1,10 @@
 # Gnome Files utilities
 
-Small usefull scripts for the (Gnome Files Manager)[https://apps.gnome.org/da/Nautilus/] (aka Nautilus)
+Small usefull scripts for the [Gnome Files Manager](https://apps.gnome.org/da/Nautilus/) (aka Nautilus)
 
 # License
 
-All scripts are licensed under the (GNU Public License v3.0 or later)[https://www.gnu.org/licenses/gpl-3.0.html].
+All scripts are licensed under the [GNU Public License v3.0 or later](https://www.gnu.org/licenses/gpl-3.0.html).
 
 # Requirements
 
@@ -58,5 +58,5 @@ For the script to be shown, it must be an executable, i.e. "chmod u+x \<file\>" 
 
 # More info
 
-- (Gnome apps page)[https://apps.gnome.org/da/Nautilus/]
-- (Linux.com article anno 2006)[https://www.linux.com/news/extending-nautilus-scripts-and-extensions/]
+- [Gnome apps page](https://apps.gnome.org/da/Nautilus/)
+- [Linux.com article anno 2006](https://www.linux.com/news/extending-nautilus-scripts-and-extensions/)
