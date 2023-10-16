@@ -59,4 +59,5 @@ For the script to be shown, it must be an executable, i.e. "chmod u+x \<file\>" 
 # More info
 
 - [Gnome apps page](https://apps.gnome.org/da/Nautilus/)
+- [Gnome HELP](https://help.gnome.org/users/gnome-help/stable/files.html)
 - [Linux.com article anno 2006](https://www.linux.com/news/extending-nautilus-scripts-and-extensions/)
