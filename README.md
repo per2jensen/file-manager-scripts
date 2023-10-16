@@ -53,10 +53,10 @@ The list of utilities presented is essentially a "ls ~/.local/share/nautilus/scr
 The scripts operate on the contents of the env var NAUTILUS_SCRIPT_SELECTED_FILE_PATHS, provided by the file manager. 
 
 
-For the script to be shown, it must be an executable, i.e. "chmod u+x <file>" may be needed.
+For the script to be shown, it must be an executable, i.e. "chmod u+x \<file\>" may be needed.
 
 
 # More info
 
-(Gnome apps page)[https://apps.gnome.org/da/Nautilus/]
-(Linux.com article anno 2006)[https://www.linux.com/news/extending-nautilus-scripts-and-extensions/]
+- (Gnome apps page)[https://apps.gnome.org/da/Nautilus/]
+- (Linux.com article anno 2006)[https://www.linux.com/news/extending-nautilus-scripts-and-extensions/]
