@@ -6,6 +6,10 @@ Small usefull scripts for the [Gnome Files Manager](https://apps.gnome.org/da/Na
 
 All scripts are licensed under the [GNU Public License v3.0 or later](https://www.gnu.org/licenses/gpl-3.0.html).
 
+# Inspiration
+
+I got some very good inspiration from [Amy Tabb's blog entry on watermarking](https://amytabb.com/til/photography/2021/01/23/image-magick-watermark/) - good stuff :-)
+
 # Requirements
 
 - exiftool
