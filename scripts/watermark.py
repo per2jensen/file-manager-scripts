@@ -15,7 +15,7 @@ WATERMARK='© Per Jensen, License: CC BY-NC-SA 4.0'
 WM_WIDTH=700 # matches the copyright notice for pkt 36 for at 2650px wide photo
 WM_HEIGHT=36
 DEFAULT_WIDTH=2560
-DEFAULT_PKTSIZE=36 # matches a 2560 width photo
+DEFAULT_PKTSIZE=32 # matches a 2560 width photo
 WM_BRIGHTNESS=50
 WM_SATURATION=80
 
