@@ -9,6 +9,8 @@
 # Remove most metadata from the files (using exiftool) and leave only a few.
 # Can be useful when uploading photo to varius places.
 
+# Beware - Nikon oriented script
+
 while IFS= read -r line; do
 	FILENAME="$line"
 	exiftool -all:all= \
@@ -18,6 +20,9 @@ while IFS= read -r line; do
 		-ProfileDecription \
 		-exif:ExposureTime \
 		-exif:CreateDate \
+		-exif:SubSecTimeDigitized \
+		-exif:SubSecTime \
+		-exif:SubSecTimeOriginal \
 		-exif:FNumber \
 		-exif:ImageSize \
 		-LensModel \

@@ -22,8 +22,8 @@ WM_WIDTH=700 # matches the copyright notice at pkt 36
 WM_HEIGHT=36
 DEFAULT_WIDTH=2560
 DEFAULT_PKTSIZE=32 # matches a 2560 width photo
-WM_BRIGHTNESS=30
-WM_SATURATION=50
+WM_BRIGHTNESS=40
+WM_SATURATION=60
 
 watermarks = {}
 

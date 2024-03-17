@@ -21,8 +21,9 @@ while IFS= read -r line; do
    if [[ -z $FILENAME ]]; then
     continue
    fi
-   EXT=$(echo "$FILENAME" |egrep -o "\.[a-zA-Z0-9]{3,4}$")
+   EXT=$(echo "$FILENAME" |egrep -o "\.[a-zA-Z0-9]*$")
    NAME=$(exiftool -P -d '%Y-%m-%d_%H:%M:%S'  -CreateDate "$FILENAME" |awk '{print $4" "$5}'|sed 's|[ \t]*$||')
+   SUBSEC=$(exiftool -P -SubSecTimeDigitized "$FILENAME"|awk '{print $6}')
 #   echo "-CreateDate generated: \"$NAME\"" >> $LOG
    if [[ -z "$NAME" ]]; then
      NAME=$(exiftool -P -d '%Y-%m-%d_%H:%M:%S' -FileModifyDate "$FILENAME" |awk '{print $5" "$6}'|sed 's|[ \t]*$||')
@@ -30,7 +31,8 @@ while IFS= read -r line; do
    fi
    if [[ ! -z "$NAME" ]]; then
 #      echo "\"$FILENAME\" ==> \"$NAME$EXT\"" >> $LOG
-      mv "$FILENAME" "$NAME$EXT"
+      #mv "$FILENAME" "${NAME},${SUBSEC}${EXT}"
+      cp "$FILENAME" "${NAME},${SUBSEC}${EXT}"
    fi	   
 done <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 
