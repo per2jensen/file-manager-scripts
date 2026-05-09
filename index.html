@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gnome Files Utilities</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --accent:   #3fb950;
+      --accent2:  #58a6ff;
+      --warn:     #d29922;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --mono:     'IBM Plex Mono', monospace;
+      --sans:     'Space Grotesk', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID NOISE BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(63,185,80,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(63,185,80,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    main { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 80px 0 60px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 3px 10px; border-radius: 20px;
+      margin-bottom: 20px;
+      animation: fadeIn .6s ease both;
+    }
+    .badge::before { content: '●'; font-size: 8px; }
+
+    h1 {
+      font-family: var(--mono);
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+      animation: slideUp .7s ease both .1s;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 580px;
+      margin-bottom: 36px;
+      animation: slideUp .7s ease both .2s;
+    }
+
+    .cta-row {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      animation: slideUp .7s ease both .3s;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 13px; font-weight: 600;
+      padding: 10px 20px; border-radius: 6px;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+
+    .btn-primary {
+      background: var(--accent); color: #0d1117;
+      box-shadow: 0 0 20px rgba(63,185,80,.25);
+    }
+    .btn-primary:hover { box-shadow: 0 0 30px rgba(63,185,80,.45); }
+
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    /* ── INSTALL BLOCK ── */
+    .install-section { padding: 52px 0 0; }
+
+    .section-label {
+      font-family: var(--mono); font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .code-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .code-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono); font-size: 12px; color: var(--muted);
+    }
+
+    .copy-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); font-family: var(--mono); font-size: 11px;
+      padding: 3px 10px; border-radius: 4px; cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    pre {
+      padding: 16px 20px;
+      font-family: var(--mono); font-size: 13.5px;
+      overflow-x: auto;
+      line-height: 1.8;
+    }
+
+    .cm  { color: var(--muted); }
+    .ck  { color: var(--accent2); }
+    .cv  { color: var(--accent); }
+    .cw  { color: var(--warn); }
+
+    /* ── SCRIPTS TABLE ── */
+    .scripts-section { padding: 52px 0 0; }
+
+    h2 {
+      font-family: var(--mono); font-size: 1.25rem; font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .section-desc { color: var(--muted); font-size: .95rem; margin-bottom: 24px; }
+
+    .scripts-grid {
+      display: grid;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .script-row {
+      display: grid;
+      grid-template-columns: 1fr auto 2.5fr;
+      gap: 0;
+      background: var(--surface);
+      transition: background .15s;
+    }
+    .script-row:hover { background: #1c2128; }
+
+    .script-row > * {
+      padding: 13px 16px;
+      border-right: 1px solid var(--border);
+      font-size: .9rem;
+    }
+    .script-row > *:last-child { border-right: none; }
+
+    .script-name { font-family: var(--mono); font-size: .85rem; color: var(--accent2); }
+    .script-creates {
+      font-size: .78rem; font-family: var(--mono);
+      display: flex; align-items: center;
+    }
+    .tag-yes { color: var(--accent); }
+    .tag-no  { color: var(--muted); }
+    .script-desc { color: var(--muted); font-size: .88rem; line-height: 1.45; }
+
+    .scripts-header {
+      display: grid; grid-template-columns: 1fr auto 2.5fr; gap: 0;
+      background: #0d1117;
+    }
+    .scripts-header > * {
+      padding: 10px 16px;
+      border-right: 1px solid var(--border);
+      font-family: var(--mono); font-size: 11px;
+      letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+    }
+    .scripts-header > *:last-child { border-right: none; }
+
+    /* ── REQUIREMENTS ── */
+    .req-section { padding: 52px 0 0; }
+
+    .req-grid {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .req-chip {
+      font-family: var(--mono); font-size: 13px;
+      padding: 6px 14px; border-radius: 6px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .req-chip .req-icon { color: var(--warn); margin-right: 6px; }
+
+    /* ── USAGE ── */
+    .usage-section { padding: 52px 0 0; }
+
+    .steps {
+      display: grid; gap: 12px;
+      counter-reset: step;
+    }
+
+    .step {
+      display: flex; gap: 16px; align-items: flex-start;
+      padding: 16px 20px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      transition: border-color .15s;
+    }
+    .step:hover { border-color: var(--accent); }
+
+    .step-num {
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      color: var(--accent); min-width: 28px;
+      background: rgba(63,185,80,.1);
+      border: 1px solid rgba(63,185,80,.3);
+      border-radius: 4px; text-align: center; padding: 2px 4px;
+    }
+
+    .step-text { font-size: .95rem; }
+    .step-text code {
+      font-family: var(--mono); font-size: .85em;
+      background: rgba(88,166,255,.1); color: var(--accent2);
+      padding: 1px 6px; border-radius: 3px;
+    }
+
+    /* ── WARNING BOX ── */
+    .warn-box {
+      margin-top: 20px;
+      display: flex; gap: 14px; align-items: flex-start;
+      padding: 16px 20px;
+      background: rgba(210,153,34,.07);
+      border: 1px solid rgba(210,153,34,.35);
+      border-radius: 8px;
+      font-size: .9rem; color: var(--muted);
+    }
+    .warn-icon { color: var(--warn); font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative; z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: .85rem; color: var(--muted);
+      font-family: var(--mono);
+    }
+    footer a { color: var(--accent2); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+
+    /* ── DIVIDER ── */
+    .divider { height: 1px; background: var(--border); margin: 0; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .script-row, .scripts-header { grid-template-columns: 1fr; }
+      .scripts-header > *:not(:first-child), .script-row > *:not(:first-child):not(:last-child) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="badge">gnome-files-utilities</div>
+    <h1>Gnome Files<br><span>Utilities</span></h1>
+    <p class="subtitle">
+      A collection of shell &amp; Python scripts that plug straight into
+      Nautilus — right-click any image and batch-process it in seconds.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/per2jensen/file-manager-scripts">
+        ↗ View on GitHub
+      </a>
+      <a class="btn btn-secondary" href="https://github.com/per2jensen/file-manager-scripts/archive/refs/heads/main.zip">
+        ↓ Download ZIP
+      </a>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="install-section">
+    <p class="section-label">Quick Start</p>
+    <h2>Installation</h2>
+    <p class="section-desc">Install dependencies, then drop the scripts into Nautilus' scripts folder.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span>bash</span>
+        <button class="copy-btn" onclick="copy(this, 'install')">copy</button>
+      </div>
+      <pre id="install"><span class="cm"># 1. Install dependencies</span>
+<span class="ck">sudo</span> <span class="cv">apt</span> install \
+  docker.io \
+  libimage-exiftool-perl \
+  imagemagick \
+  jpegoptim \
+  python3
+
+<span class="cm"># 2. Clone the repo</span>
+<span class="ck">git</span> <span class="cv">clone</span> https://github.com/per2jensen/file-manager-scripts.git
+
+<span class="cm"># 3. Copy scripts to Nautilus</span>
+<span class="ck">cp</span> file-manager-scripts/scripts/* \
+  <span class="cw">~/.local/share/nautilus/scripts/</span>
+
+<span class="cm"># 4. Make them executable</span>
+<span class="ck">chmod</span> u+x <span class="cw">~/.local/share/nautilus/scripts/*</span></pre>
+    </div>
+  </section>
+
+  <!-- SCRIPTS -->
+  <section class="scripts-section">
+    <p class="section-label">Reference</p>
+    <h2>Available Scripts</h2>
+    <p class="section-desc">All scripts operate on files selected in Nautilus via <code style="font-family:var(--mono);font-size:.85em;background:rgba(88,166,255,.1);color:var(--accent2);padding:1px 6px;border-radius:3px">NAUTILUS_SCRIPT_SELECTED_FILE_PATHS</code>.</p>
+
+    <div class="scripts-grid">
+      <div class="scripts-header">
+        <div>Script</div>
+        <div>New file?</div>
+        <div>Description</div>
+      </div>
+
+      <div class="script-row">
+        <div class="script-name">30percent.sh</div>
+        <div class="script-creates tag-no">No</div>
+        <div class="script-desc">Run jpegoptim and reduce a JPEG image to 30% of its original size, in-place.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">reducemeta.sh</div>
+        <div class="script-creates tag-no">No</div>
+        <div class="script-desc">Remove most EXIF metadata from a JPEG while keeping the file intact.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">remove-meta-data.sh</div>
+        <div class="script-creates tag-no">No</div>
+        <div class="script-desc">Strip <em>all</em> metadata from a JPEG — complete clean slate.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">rename-2-timestamp</div>
+        <div class="script-creates tag-no">No</div>
+        <div class="script-desc">Rename an image file to its capture timestamp, probing EXIF data first.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">scrubexif.sh</div>
+        <div class="script-creates tag-no">No</div>
+        <div class="script-desc"><span style="color:var(--warn)">⚠ Requires Docker.</span> Removes almost all EXIF metadata from a JPEG via a sandboxed container.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">watermark.py</div>
+        <div class="script-creates tag-yes">Yes</div>
+        <div class="script-desc">Python rewrite of the watermark script (v2). Improved accuracy and control — recommended option.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">watermark.sh</div>
+        <div class="script-creates tag-yes">Yes</div>
+        <div class="script-desc">Shell-based watermark script, version 1.</div>
+      </div>
+      <div class="script-row">
+        <div class="script-name">watermark2.sh</div>
+        <div class="script-creates tag-yes">Yes</div>
+        <div class="script-desc">Shell-based watermark script, version 2 — stepping stone to the Python rewrite.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REQUIREMENTS -->
+  <section class="req-section">
+    <p class="section-label">Dependencies</p>
+    <h2>Requirements</h2>
+    <p class="section-desc">Most scripts need one or more of the tools below.</p>
+    <div class="req-grid">
+      <span class="req-chip"><span class="req-icon">●</span>docker</span>
+      <span class="req-chip"><span class="req-icon">●</span>exiftool</span>
+      <span class="req-chip"><span class="req-icon">●</span>imagemagick</span>
+      <span class="req-chip"><span class="req-icon">●</span>jpegoptim</span>
+      <span class="req-chip"><span class="req-icon">●</span>python3</span>
+    </div>
+  </section>
+
+  <!-- USAGE -->
+  <section class="usage-section">
+    <p class="section-label">How to Use</p>
+    <h2>Running a Script</h2>
+    <p class="section-desc">Once the scripts are in place, using them is a right-click away.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-text">Open Nautilus and browse to the directory containing your images.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-text">Select one or more files.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-text">Right-click and choose <code>Scripts</code> from the context menu.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-text">Pick the script you want — the list reflects everything in <code>~/.local/share/nautilus/scripts/</code>.</div>
+      </div>
+    </div>
+
+    <div class="warn-box">
+      <div class="warn-icon">⚠</div>
+      <div>
+        Some scripts modify the original file; others create a new file alongside it.
+        Check the <strong>New file?</strong> column in the table above before running a script on originals you want to keep.
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>
+    Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a> ·
+    <a href="https://github.com/per2jensen/file-manager-scripts">per2jensen/file-manager-scripts</a> ·
+    Inspired by <a href="https://amytabb.com/til/photography/2021/01/23/image-magick-watermark/">Amy Tabb's watermarking guide</a>
+  </p>
+</footer>
+
+<script>
+  function copy(btn, id) {
+    const el = document.getElementById(id);
+    const text = el.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'copied!';
+      btn.style.color = 'var(--accent)';
+      setTimeout(() => { btn.textContent = 'copy'; btn.style.color = ''; }, 2000);
+    });
+  }
+</script>
+</body>
+</html>
