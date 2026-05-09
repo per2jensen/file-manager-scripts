@@ -12,14 +12,17 @@ I got some very good inspiration from [Amy Tabb's blog entry on watermarking](ht
 
 # Requirements
 
+- docker
 - exiftool
 - imagemagick
 - jpegoptim
 - python3 for (watermark.py)
 
 You can install the requirements on Ubuntu this way
-```
+
+```bash
 sudo apt install \
+  docker.io \
   libimage-exiftool-perl \
   imagemagick \
   jpegoptim \
@@ -35,15 +38,17 @@ Copy the scripts to this location: ~/.local/share/nautilus/scripts
  |Script|New file|Description|
  |------|-----------|---------------|
  |30percent.sh|No|run jpegoptim and reduce a jpeg image to 30% it's size|
- |reducemeta.shNo|No|Remove most metadata from a jpeg|
+ |reducemeta.sh|No|Remove most metadata from a jpeg|
  |remove-meta-data.sh|No|remove all metadata from a jpeg|
  |rename-2-timestamp|No|rename an image to a timestamp, tries to find the time of capture|
+ |scrubexif.sh|No|**Requires Docker**, removes almost all metadata from a JPEG|
  |watermark.py|Yes|improved version 2 of my image watermark script, now a python script|
  |watermark.sh|Yes|version 1 of my image watermark script|
+ |watermark2.sh|Yes|version 2 of my image watermark script|
 
-  **Beware**
+**Beware**
 
- Some scripts changes the files, other scripts create a new file. There is no hard and fast rules on which does what. It is my typical usage that governs that, your milage may vary.
+ Some scripts changes the files, other scripts create a new file. There are no hard and fast rules on which does what. It is my typical usage that governs that, your milage may vary.
 
 # Usage
 
@@ -54,11 +59,9 @@ Copy the scripts to this location: ~/.local/share/nautilus/scripts
 
 The list of utilities presented is essentially a "ls ~/.local/share/nautilus/scripts" + possibly more
 
-The scripts operate on the contents of the env var NAUTILUS_SCRIPT_SELECTED_FILE_PATHS, provided by the file manager. 
-
+The scripts operate on the contents of the env var NAUTILUS_SCRIPT_SELECTED_FILE_PATHS, provided by the file manager.
 
 For the script to be shown, it must be an executable, i.e. "chmod u+x \<file\>" may be needed.
-
 
 # More info
 
