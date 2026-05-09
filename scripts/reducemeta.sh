@@ -13,7 +13,8 @@
 
 while IFS= read -r line; do
 	FILENAME="$line"
-	exiftool -all:all= \
+	exiftool -r -overwrite_original \
+		-all:all= \
 		-tagsfromfile @ \
 		-ColorSpaceTags \
 		-ICC_Profile \

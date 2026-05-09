@@ -19,10 +19,10 @@ import sys
 
 WATERMARK='© Per Jensen, license CC BY-NC-SA 4.0'
 WM_WIDTH=700 # matches the copyright notice at pkt 36
-WM_HEIGHT=36
+WM_HEIGHT=44
 DEFAULT_WIDTH=2560
-DEFAULT_PKTSIZE=32 # matches a 2560 width photo
-WM_BRIGHTNESS=40
+DEFAULT_PKTSIZE=40 # matches a 2560 width photo
+WM_BRIGHTNESS=50
 WM_SATURATION=60
 
 watermarks = {}
