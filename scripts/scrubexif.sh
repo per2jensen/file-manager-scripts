@@ -6,29 +6,59 @@
 # See license details here: https://www.gnu.org/licenses/gpl-3.0.html
 
 
-# Remove most metadata from the files (using exiftool) and leave only a few.
-# Can be useful when uploading photo to varius places.
+# Remove most metadata JPEG photos and leave only a few.
+# Can easily be changed to "full paranoia scrubbing" :-)
+# The engine is https://github.com/per2jensen/scrubexif
 
+
+echo "===>>>  Running $0 at $(date --iso-8601=seconds)" | tee -a /tmp/scrubexif.log
 
 echo "DEBUG: '$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS'" | cat -A | tee -a /tmp/scrubexif.log
 
 
+# Build args array
+ARGS=()
 while IFS= read -r line; do
-    FILE_DIR=$(dirname "$line")
-    BASE_NAME=$(basename "$line")
-
-    echo "Scrubbing file: \"$BASE_NAME\" in \"$FILE_DIR\"" | tee -a /tmp/scrubexif.log
-
-    # ensure `scrubexif` is only run if a file is selected  
-    if [[ -z "$BASE_NAME"  ]]; then
-        echo "$0:  No file selected, skipping." | tee -a /tmp/scrubexif.log
-        continue
-    fi
-
-  docker run --rm \
-      --read-only --security-opt no-new-privileges \
-      --tmpfs /tmp \
-      -v "$FILE_DIR:/photos" \
-      per2jensen/scrubexif:latest --clean-inline "$BASE_NAME"  | tee -a /tmp/scrubexif.log
-
+    [[ -z "$line" ]] && continue
+    ARGS+=("$line")
 done <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+
+# Guard: ensure at least one file was selected
+if [[ ${#ARGS[@]} -eq 0 ]]; then
+    echo "$0: No files selected, exiting." | tee -a /tmp/scrubexif.log
+    notify-send -u critical "scrubexif ❌" "No files selected — aborting to avoid cleaning entire directory"
+    exit 1
+fi
+
+# All files must be in the same dir for a single mount
+FILE_DIR=$(dirname "${ARGS[0]}")
+
+# Build basename args for the container
+BASENAMES=()
+for f in "${ARGS[@]}"; do
+    BASENAMES+=("$(basename "$f")")
+done
+
+docker run --rm \
+    --read-only --security-opt no-new-privileges \
+    --tmpfs /tmp \
+    -v "$FILE_DIR:/photos" \
+    per2jensen/scrubexif:latest --clean-inline "${BASENAMES[@]}" | tee -a /tmp/scrubexif.log
+
+
+# Parse the SCRUBEXIF_SUMMARY line
+SUMMARY_LINE=$(grep "SCRUBEXIF_SUMMARY" /tmp/scrubexif.log | tail -1)
+SCRUBBED=$(echo "$SUMMARY_LINE" | grep -oP 'scrubbed=\K[0-9]+')
+SKIPPED=$(echo "$SUMMARY_LINE"  | grep -oP 'skipped=\K[0-9]+')
+ERRORS=$(echo "$SUMMARY_LINE"   | grep -oP 'errors=\K[0-9]+')
+TOTAL=$(echo "$SUMMARY_LINE"    | grep -oP 'total=\K[0-9]+')
+
+if [[ "$ERRORS" -gt 0 || "$SKIPPED" -gt 0 ]]; then
+    notify-send -u critical "scrubexif ❌" "Scrubbed $SCRUBBED/$TOTAL files — skipped: $SKIPPED, errors: $ERRORS"
+else
+    notify-send "scrubexif ✅" "Scrubbed $SCRUBBED/$TOTAL files successfully"
+fi
+
+
+
+
