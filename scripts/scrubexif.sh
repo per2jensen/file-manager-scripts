@@ -6,13 +6,16 @@
 #
 # Remove most metadata from JPEG photos and leave only a few.
 # Can easily be changed to "full paranoia scrubbing" :-)
-# The engine is https://github.com/per2jensen/scrubexif
+# The engine is my https://github.com/per2jensen/scrubexif
 #
 # IMPORTANT: At least one file must be selected in Nautilus before running
 # this script. Without a selection, scrubexif would process the entire
 # directory — stripping exif data from all photos, which is irreversible.
 
 LOG=/tmp/scrubexif.log
+MAX_LOG=102400   # 100k
+HALF_LOG=51200   #  50k
+
 
 log() {
     echo "$*" | tee -a "$LOG"
@@ -24,8 +27,13 @@ abort() {
     exit 1
 }
 
-log "===>>>  Running $0 at $(date --iso-8601=seconds)"
-echo "DEBUG: '$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS'" | cat -A | tee -a "$LOG"
+# trim the log file if it exceeds the max size, keeping only the last half of it
+if [ -f "$LOGFILE" ] && [ "$(stat -c%s "$LOGFILE")" -gt "$MAX_LOG" ]; then
+    tail -c $HALF_LOG "$LOGFILE" | tail -n +2 > "$LOGFILE.tmp" && mv "$LOGFILE.tmp" "$LOGFILE"
+fi
+
+log "===>>> $(date --iso-8601=seconds) - running $0"
+#echo "DEBUG: '$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS'" | cat -A | tee -a "$LOG"
 
 # Check docker is available
 command -v docker &>/dev/null || abort "docker is not installed or not in PATH"
