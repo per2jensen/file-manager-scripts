@@ -12,13 +12,13 @@
 # this script. Without a selection, scrubexif would process the entire
 # directory — stripping exif data from all photos, which is irreversible.
 
-LOG=/tmp/scrubexif.log
+LOGFILE=/tmp/scrubexif.log
 MAX_LOG=102400   # 100k
 HALF_LOG=51200   #  50k
 
 
 log() {
-    echo "$*" | tee -a "$LOG"
+    echo "$*" | tee -a "$LOGFILE"
 }
 
 abort() {
@@ -33,7 +33,7 @@ if [ -f "$LOGFILE" ] && [ "$(stat -c%s "$LOGFILE")" -gt "$MAX_LOG" ]; then
 fi
 
 log "===>>> $(date --iso-8601=seconds) - running $0"
-#echo "DEBUG: '$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS'" | cat -A | tee -a "$LOG"
+#echo "DEBUG: '$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS'" | cat -A | tee -a "$LOGFILE"
 
 # Check docker is available
 command -v docker &>/dev/null || abort "docker is not installed or not in PATH"
@@ -70,14 +70,23 @@ done
 
 log "Processing ${#BASENAMES[@]} file(s) in $FILE_DIR"
 
+
+RUN_AS_UID=${RUN_AS_UID:-$(id -u)}
+RUN_AS_GID=${RUN_AS_GID:-$(id -g)}
+if [ "$RUN_AS_UID" -eq 0 ]; then
+    abort "Running as root is not allowed"
+fi
+log "Running docker as UID:GID $RUN_AS_UID:$RUN_AS_GID"
+
 docker run --rm \
+    --user "$RUN_AS_UID:$RUN_AS_GID" \
     --read-only --security-opt no-new-privileges \
     --tmpfs /tmp \
     -v "$FILE_DIR:/photos" \
-    per2jensen/scrubexif:latest --clean-inline "${BASENAMES[@]}" | tee -a "$LOG"
+    per2jensen/scrubexif:latest --clean-inline "${BASENAMES[@]}" | tee -a "$LOGFILE"
 
 # Parse the SCRUBEXIF_SUMMARY line
-SUMMARY_LINE=$(grep "SCRUBEXIF_SUMMARY" "$LOG" | tail -1)
+SUMMARY_LINE=$(grep "SCRUBEXIF_SUMMARY" "$LOGFILE" | tail -1)
 SCRUBBED=$(echo "$SUMMARY_LINE" | grep -oP 'scrubbed=\K[0-9]+')
 SKIPPED=$(echo "$SUMMARY_LINE"  | grep -oP 'skipped=\K[0-9]+')
 ERRORS=$(echo "$SUMMARY_LINE"   | grep -oP 'errors=\K[0-9]+')
@@ -85,7 +94,7 @@ TOTAL=$(echo "$SUMMARY_LINE"    | grep -oP 'total=\K[0-9]+')
 
 # Check we actually got a summary — if not, docker or scrubexif likely failed
 if [[ -z "$TOTAL" ]]; then
-    abort "No summary line found — scrubexif may have failed. Check $LOG"
+    abort "No summary line found — scrubexif may have failed. Check log: $LOGFILE."
 fi
 
 if [[ "$ERRORS" -gt 0 || "$SKIPPED" -gt 0 ]]; then
