@@ -63,6 +63,36 @@ The scripts operate on the contents of the env var NAUTILUS_SCRIPT_SELECTED_FILE
 
 For the script to be shown, it must be an executable, i.e. "chmod u+x \<file\>" may be needed.
 
+# `scrubexif.sh` - docker based
+
+BEHAVIOUR
+
+- Guards: verifies Docker is available, at least one file is selected,
+  all selected files exist, and all are in the same directory.
+
+- Filesystem detection: uses findmnt to check whether the source
+  directory is on a filesystem that Docker's daemon cannot bind-mount
+  directly (FUSE mounts such as pCloud, NFS, CIFS/Samba).
+
+  - **Local filesystem**: Docker bind-mounts the source directory directly
+   and processes all selected files in a single container run.
+
+  - **FUSE/NFS/CIFS filesystem**:
+    Safety check: verifies that the combined size of all selected files
+    fits in the temp directory (${TMPDIR:-/tmp}). If not, aborts with
+    a desktop notification showing the shortfall in MB.
+  
+    All selected files are copied to a local temp dir.
+  
+    Docker processes them all in a single container run.
+  
+    Processed files are copied back to the original directory.
+  
+    The temp dir is removed when the script exits (success or failure).
+
+- Result: a desktop notification reports how many files were scrubbed,
+  skipped, or errored. A full log is written to /tmp/scrubexif.log.
+
 # More info
 
 - [Gnome apps page](https://apps.gnome.org/da/Nautilus/)
