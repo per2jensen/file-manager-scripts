@@ -91,10 +91,10 @@ BEHAVIOUR
     The temp dir is removed when the script exits (success or failure).
 
 - Result: a desktop notification distinguishes successful, warning, error,
-  duplicate-only, unsupported-only, and no-change outcomes. It reports the
-  selected, examined, scrubbed, skipped, error, duplicate, and unsupported
-  counts so the result can be reconciled with the Nautilus selection. A full
-  log is written to /tmp/scrubexif.log.
+  duplicate-only, unsupported-only, and no-change outcomes. It always reports
+  selected, examined, and scrubbed counts, and adds skipped, error, duplicate,
+  and unsupported counts when they are nonzero. A full log is written to
+  /tmp/scrubexif.log.
 
 # More info
 

@@ -165,6 +165,7 @@ send_summary_notification() {
     local duplicates_moved="${9:-}"
     local duplicates_handled=0
     local body=""
+    local jpeg_noun="JPEGs"
 
     validate_count selected "${selected}"
     validate_count total "${total}"
@@ -177,7 +178,23 @@ send_summary_notification() {
     validate_count duplicates_moved "${duplicates_moved}"
 
     duplicates_handled=$((duplicates_deleted + duplicates_moved))
-    body="Selected ${selected} files — examined: ${examined}; scrubbed: ${scrubbed}/${total} JPEGs; skipped: ${skipped}; errors: ${errors}; duplicates: ${duplicates_handled}; unsupported: ${unsupported}"
+    if ((total == 1)); then
+        jpeg_noun="JPEG"
+    fi
+
+    body="Examined ${examined}/${selected} • scrubbed ${scrubbed}/${total} ${jpeg_noun}"
+    if ((skipped > 0)); then
+        body+=" • skipped ${skipped}"
+    fi
+    if ((errors > 0)); then
+        body+=" • errors ${errors}"
+    fi
+    if ((duplicates_handled > 0)); then
+        body+=" • duplicates ${duplicates_handled}"
+    fi
+    if ((unsupported > 0)); then
+        body+=" • unsupported ${unsupported}"
+    fi
 
     if ((errors > 0)); then
         send_notification critical dialog-error "scrubexif ❌ Completed with errors" "${body}"
@@ -185,9 +202,6 @@ send_summary_notification() {
     fi
 
     if ((skipped > 0 || selected != examined)); then
-        if ((selected != examined)); then
-            body+="; selected/examined mismatch"
-        fi
         send_notification normal dialog-warning "scrubexif ⚠️ Completed with warnings" "${body}"
         return
     fi

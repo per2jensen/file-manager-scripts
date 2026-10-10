@@ -157,8 +157,8 @@ def _run_wrapper(
     return result, arguments
 
 
-def test_notification_success_reports_all_reconciliation_counts(tmp_path: Path) -> None:
-    """A successful mixed selection reports every count and a success icon.
+def test_notification_success_reports_compact_nonzero_counts(tmp_path: Path) -> None:
+    """A successful mixed selection reports only useful counts compactly.
 
     Args:
         tmp_path: Isolated test directory.
@@ -170,10 +170,10 @@ def test_notification_success_reports_all_reconciliation_counts(tmp_path: Path) 
 
     assert arguments[:4] == ["-u", "normal", "-i", "emblem-default"]
     assert arguments[4] == "scrubexif ✅ Scrubbing complete"
-    assert arguments[5] == (
-        "Selected 11 files — examined: 11; scrubbed: 10/10 JPEGs; "
-        "skipped: 0; errors: 0; duplicates: 0; unsupported: 1"
-    )
+    assert arguments[5] == "Examined 11/11 • scrubbed 10/10 JPEGs • unsupported 1"
+    assert "skipped" not in arguments[5]
+    assert "errors" not in arguments[5]
+    assert "duplicates" not in arguments[5]
 
 
 def test_notification_selected_examined_mismatch_is_warning(tmp_path: Path) -> None:
@@ -189,7 +189,7 @@ def test_notification_selected_examined_mismatch_is_warning(tmp_path: Path) -> N
 
     assert arguments[:4] == ["-u", "normal", "-i", "dialog-warning"]
     assert arguments[4] == "scrubexif ⚠️ Completed with warnings"
-    assert arguments[5].endswith("selected/examined mismatch")
+    assert arguments[5] == "Examined 2/3 • scrubbed 2/2 JPEGs"
 
 
 def test_notification_skipped_file_is_warning(tmp_path: Path) -> None:
@@ -205,7 +205,7 @@ def test_notification_skipped_file_is_warning(tmp_path: Path) -> None:
 
     assert arguments[:4] == ["-u", "normal", "-i", "dialog-warning"]
     assert arguments[4] == "scrubexif ⚠️ Completed with warnings"
-    assert "skipped: 1" in arguments[5]
+    assert arguments[5] == "Examined 2/2 • scrubbed 1/2 JPEGs • skipped 1"
 
 
 def test_notification_processing_error_is_critical(tmp_path: Path) -> None:
@@ -221,7 +221,7 @@ def test_notification_processing_error_is_critical(tmp_path: Path) -> None:
 
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
     assert arguments[4] == "scrubexif ❌ Completed with errors"
-    assert "errors: 1" in arguments[5]
+    assert arguments[5] == "Examined 1/1 • scrubbed 0/1 JPEG • errors 1"
 
 
 def test_notification_duplicate_only_is_informational(tmp_path: Path) -> None:
@@ -237,7 +237,7 @@ def test_notification_duplicate_only_is_informational(tmp_path: Path) -> None:
 
     assert arguments[:4] == ["-u", "low", "-i", "dialog-information"]
     assert arguments[4] == "scrubexif ℹ️ Duplicates handled"
-    assert "duplicates: 1" in arguments[5]
+    assert arguments[5] == "Examined 1/1 • scrubbed 0/1 JPEG • duplicates 1"
 
 
 def test_wrapper_uses_current_summary_instead_of_stale_log(tmp_path: Path) -> None:
@@ -259,7 +259,7 @@ def test_wrapper_uses_current_summary_instead_of_stale_log(tmp_path: Path) -> No
     assert result.returncode == 0, result.stderr
     assert arguments[:4] == ["-u", "low", "-i", "dialog-information"]
     assert arguments[4] == "scrubexif ℹ️ Nothing processed"
-    assert "unsupported: 1" in arguments[5]
+    assert "unsupported 1" in arguments[5]
 
 
 def test_wrapper_preserves_failed_docker_status(tmp_path: Path) -> None:
@@ -280,7 +280,7 @@ def test_wrapper_preserves_failed_docker_status(tmp_path: Path) -> None:
 
     assert result.returncode == 7
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
-    assert "errors: 1" in arguments[5]
+    assert "errors 1" in arguments[5]
 
 
 def test_wrapper_rejects_invalid_summary_counter(tmp_path: Path) -> None:
