@@ -115,6 +115,18 @@ Desktop notifications report the numbers selected, examined and scrubbed, with s
 
 The default log is `/tmp/scrubexif.log` (override with `SCRUBEXIF_LOGFILE`). The image can be overridden with `SCRUBEXIF_IMAGE`; `RUN_AS_UID`, `RUN_AS_GID` and `TMPDIR` are also supported. For reproducible testing, consider using a specific versioned image tag rather than `latest`.
 
+
+#### Example of `success` notification
+
+![Success notification](doc/success-notification.png)
+
+#### Example of `error` notification
+
+![Error notification](doc/error-notification.png)
+
+
+
+
 ### Verification status (October 2026)
 
 The revised integration has been exercised in GNOME Files against:
