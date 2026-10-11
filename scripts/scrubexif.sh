@@ -13,8 +13,9 @@
 #   selections; filenames containing newlines are unsupported.
 # - Container runs without networking or Linux capabilities, with no-new-
 #   privileges, read-only rootfs, private size-limited /tmp and process limit.
-# - Explicitly validates exactly one machine summary and required numeric fields;
-#   Docker failure or errors never produces a success notification.
+# - Explicitly validates exactly one machine summary and required numeric fields.
+#   Exit status 1 is accepted only with reported processing errors, allowing
+#   successful remote outputs from a mixed batch to be published safely.
 # - NFS/CIFS/FUSE mode copies inputs to a private local directory. Originals are
 #   fingerprinted first; changed originals are NOT overwritten on copy-back.
 # - Remote copy-back stages each changed JPEG beside its original, verifies its
@@ -287,7 +288,18 @@ main() {
     docker_status="${pipeline_status[0]}"
     tee_status="${pipeline_status[1]}"
     ((tee_status == 0)) || abort "Failed to capture scrubexif log output"
-    ((docker_status == 0)) || abort "scrubexif container failed (rc=$docker_status); remote originals unchanged"
+    if ((docker_status != 0 && docker_status != 1)); then
+        if [[ "$needs_copy" == true ]]; then
+            log_error "$0: ERROR: scrubexif container failed (rc=$docker_status); remote originals unchanged"
+            send_notification critical dialog-error "scrubexif ❌" \
+                "scrubexif container failed (rc=$docker_status); remote originals unchanged"
+        else
+            log_error "$0: ERROR: scrubexif container failed (rc=$docker_status); local files may already have changed"
+            send_notification critical dialog-error "scrubexif ❌" \
+                "scrubexif container failed (rc=$docker_status); local files may already have changed"
+        fi
+        exit "$docker_status"
+    fi
 
     # Require exactly one summary. No publication to a remote filesystem until
     # accounting is checked; local mode relies on scrubexif's own publication.
@@ -316,9 +328,15 @@ main() {
     for file in total scrubbed skipped errors duplicates_deleted duplicates_moved unsupported examined; do
         validate_count "$file" "${!file}"
     done
-    ((errors == 0)) || abort "scrubexif reports $errors errors; refusing remote copy-back"
     ((examined == ${#args[@]})) || abort "Examined $examined inputs, selected ${#args[@]}; refusing remote copy-back"
+    ((total + unsupported == examined)) || abort "Inconsistent summary: total plus unsupported does not equal examined"
     ((scrubbed + skipped + duplicates_deleted + duplicates_moved <= examined)) || abort "Inconsistent summary counters"
+    if ((docker_status == 0 && errors != 0)); then
+        abort "Inconsistent result: scrubexif exited successfully but reported $errors errors"
+    fi
+    if ((docker_status == 1 && errors == 0)); then
+        abort "Inconsistent result: scrubexif exited with rc=1 but reported no errors"
+    fi
 
     if [[ "$needs_copy" == true ]]; then
         # Prepare ALL changed files before replacing ANY. Ordinary copy failure
@@ -360,6 +378,7 @@ main() {
     send_summary_notification \
         "${#args[@]}" "$total" "$scrubbed" "$skipped" "$errors" \
         "$unsupported" "$examined" "$duplicates_deleted" "$duplicates_moved"
+    return "$docker_status"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

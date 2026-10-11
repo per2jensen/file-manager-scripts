@@ -78,6 +78,10 @@ def _run_wrapper(
     summary_line: str,
     docker_exit: int,
     selected_file_count: int,
+    *,
+    filesystem_type: str = "ext4",
+    mutate_selected_index: int | None = None,
+    mutate_original_index: int | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """Run the wrapper with real files and controlled command adapters.
 
@@ -86,6 +90,11 @@ def _run_wrapper(
         summary_line: Current invocation summary emitted by fake Docker.
         docker_exit: Exit status returned by fake Docker.
         selected_file_count: Number of real files supplied as selected paths.
+        filesystem_type: Filesystem type returned by the fake findmnt command.
+        mutate_selected_index: Selected file changed in the mounted directory,
+            or None to leave all mounted files unchanged.
+        mutate_original_index: Selected original changed while Docker runs, or
+            None to leave originals untouched outside the mounted directory.
 
     Returns:
         Completed wrapper process and captured notification arguments.
@@ -98,6 +107,16 @@ def _run_wrapper(
         raise ValueError("docker_exit must be between zero and 255")
     if selected_file_count < 1:
         raise ValueError("selected_file_count must be positive")
+    if not filesystem_type:
+        raise ValueError("filesystem_type must not be empty")
+    for name, index in (
+        ("mutate_selected_index", mutate_selected_index),
+        ("mutate_original_index", mutate_original_index),
+    ):
+        if index is not None and (index < 0 or index >= selected_file_count):
+            raise ValueError(
+                f"{name} must identify one of the selected files or be None"
+            )
 
     input_dir = tmp_path / "input"
     binary_dir = tmp_path / "bin"
@@ -107,7 +126,7 @@ def _run_wrapper(
     selected_paths: list[str] = []
     for index in range(selected_file_count):
         selected_path = input_dir / f"selected-{index}.jpg"
-        selected_path.write_bytes(b"test")
+        selected_path.write_bytes(f"original-{index}".encode("utf-8"))
         selected_paths.append(str(selected_path))
 
     capture_path = tmp_path / "notification.txt"
@@ -118,6 +137,22 @@ def _run_wrapper(
         "set -euo pipefail\n"
         "if [[ \"${1:-}\" == \"info\" ]]; then exit 0; fi\n"
         "if [[ \"${1:-}\" == \"run\" ]]; then\n"
+        "    mount_dir=''\n"
+        "    previous=''\n"
+        "    for argument in \"$@\"; do\n"
+        "        if [[ \"${previous}\" == '-v' ]]; then\n"
+        "            mount_dir=\"${argument%:/photos}\"\n"
+        "            break\n"
+        "        fi\n"
+        "        previous=\"${argument}\"\n"
+        "    done\n"
+        "    [[ -n \"${mount_dir}\" ]] || exit 98\n"
+        "    if [[ -n \"${DOCKER_MUTATE_NAME:-}\" ]]; then\n"
+        "        printf '%s' 'scrubbed-output' > \"${mount_dir}/${DOCKER_MUTATE_NAME}\"\n"
+        "    fi\n"
+        "    if [[ -n \"${DOCKER_ORIGINAL_TO_MUTATE:-}\" ]]; then\n"
+        "        printf '%s' 'concurrent-change' > \"${DOCKER_ORIGINAL_TO_MUTATE}\"\n"
+        "    fi\n"
         "    printf '%s\\n' \"${DOCKER_SUMMARY}\"\n"
         "    exit \"${DOCKER_EXIT}\"\n"
         "fi\n"
@@ -125,6 +160,14 @@ def _run_wrapper(
         encoding="utf-8",
     )
     docker_path.chmod(0o755)
+    findmnt_path = binary_dir / "findmnt"
+    findmnt_path.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "printf '%s\\n' \"${FINDMNT_FSTYPE}\"\n",
+        encoding="utf-8",
+    )
+    findmnt_path.chmod(0o755)
 
     log_path = tmp_path / "scrubexif.log"
     log_path.write_text(
@@ -140,6 +183,17 @@ def _run_wrapper(
             "NOTIFY_CAPTURE": str(capture_path),
             "DOCKER_SUMMARY": summary_line,
             "DOCKER_EXIT": str(docker_exit),
+            "DOCKER_MUTATE_NAME": (
+                Path(selected_paths[mutate_selected_index]).name
+                if mutate_selected_index is not None
+                else ""
+            ),
+            "DOCKER_ORIGINAL_TO_MUTATE": (
+                selected_paths[mutate_original_index]
+                if mutate_original_index is not None
+                else ""
+            ),
+            "FINDMNT_FSTYPE": filesystem_type,
             "RUN_AS_UID": "1000",
             "RUN_AS_GID": "1000",
             "SCRUBEXIF_LOGFILE": str(log_path),
@@ -147,7 +201,7 @@ def _run_wrapper(
         }
     )
     result = subprocess.run(
-        [str(SCRIPT)],
+        ["bash", str(SCRIPT)],
         check=False,
         env=environment,
         capture_output=True,
@@ -263,7 +317,7 @@ def test_wrapper_uses_current_summary_instead_of_stale_log(tmp_path: Path) -> No
 
 
 def test_wrapper_preserves_failed_docker_status(tmp_path: Path) -> None:
-    """An error notification does not hide Docker's failure status.
+    """An abnormal Docker failure publishes nothing and preserves its status.
 
     Args:
         tmp_path: Isolated test directory.
@@ -276,11 +330,88 @@ def test_wrapper_preserves_failed_docker_status(tmp_path: Path) -> None:
         "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
         "duration=0.100"
     )
-    result, arguments = _run_wrapper(tmp_path, current_summary, 7, 1)
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        7,
+        1,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
 
     assert result.returncode == 7
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
-    assert "errors 1" in arguments[5]
+    assert arguments[5] == "scrubexif container failed (rc=7); remote originals unchanged"
+
+
+def test_wrapper_remote_partial_error_publishes_only_changed_output(
+    tmp_path: Path,
+) -> None:
+    """A controlled mixed remote run publishes its successful JPEG.
+
+    Args:
+        tmp_path: Isolated test directory.
+
+    Returns:
+        None.
+    """
+    current_summary = (
+        "SCRUBEXIF_SUMMARY total=2 scrubbed=1 skipped=0 errors=1 "
+        "duplicates_deleted=0 duplicates_moved=0 unsupported=2 examined=4 "
+        "duration=0.100"
+    )
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        1,
+        4,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"scrubbed-output"
+    for index in range(1, 4):
+        assert (tmp_path / "input" / f"selected-{index}.jpg").read_bytes() == (
+            f"original-{index}".encode("utf-8")
+        )
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert arguments[4] == "scrubexif ❌ Completed with errors"
+    assert arguments[5] == (
+        "Examined 4/4 • scrubbed 1/2 JPEGs • errors 1 • unsupported 2"
+    )
+    assert "Atomically published 1 changed file(s)" in result.stdout
+
+
+def test_wrapper_remote_concurrent_change_prevents_copy_back(tmp_path: Path) -> None:
+    """A changed remote original is never overwritten by a scrubbed copy.
+
+    Args:
+        tmp_path: Isolated test directory.
+
+    Returns:
+        None.
+    """
+    current_summary = (
+        "SCRUBEXIF_SUMMARY total=1 scrubbed=1 skipped=0 errors=0 "
+        "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
+        "duration=0.100"
+    )
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        0,
+        1,
+        filesystem_type="nfs4",
+        mutate_selected_index=0,
+        mutate_original_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"concurrent-change"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert arguments[5] == "Original changed during processing: selected-0.jpg"
 
 
 def test_wrapper_rejects_invalid_summary_counter(tmp_path: Path) -> None:
@@ -297,8 +428,45 @@ def test_wrapper_rejects_invalid_summary_counter(tmp_path: Path) -> None:
         "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
         "duration=0.100"
     )
-    result, arguments = _run_wrapper(tmp_path, current_summary, 0, 1)
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        1,
+        1,
+        filesystem_type="cifs",
+        mutate_selected_index=0,
+    )
 
     assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
     assert "Invalid total count" in arguments[5]
+
+
+def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> None:
+    """Exit status one without summary errors cannot publish remote output.
+
+    Args:
+        tmp_path: Isolated test directory.
+
+    Returns:
+        None.
+    """
+    current_summary = (
+        "SCRUBEXIF_SUMMARY total=1 scrubbed=1 skipped=0 errors=0 "
+        "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
+        "duration=0.100"
+    )
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        1,
+        1,
+        filesystem_type="smbfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert "exited with rc=1 but reported no errors" in arguments[5]

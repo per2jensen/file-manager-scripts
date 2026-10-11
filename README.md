@@ -97,7 +97,8 @@ The wrapper checks filesystem type using `findmnt`:
 For remote copy-back, the wrapper:
 
 1. Hashes the originals before processing.
-2. Requires a successful Docker exit and a valid, internally consistent summary with no reported errors.
+2. Requires either a successful Docker exit with no reported errors, or exit
+   status 1 with a valid, internally consistent summary that reports errors.
 3. Checks whether originals changed while processing and refuses to overwrite changed files.
 4. Stages each changed output next to its original, compares its contents and syncs the staged file.
 5. Rechecks original hashes and publishes each changed file using a same-directory rename.
@@ -108,7 +109,7 @@ Temporary work files are cleaned during ordinary exit and handled SIGINT/SIGTERM
 
 ### Results and diagnostics
 
-The wrapper requires a machine-readable `SCRUBEXIF_SUMMARY` and validates required numeric counters. Missing, duplicated, malformed or inconsistent reporting is treated as failure. Docker failures or reported processing errors do not produce a success notification.
+The wrapper requires a machine-readable `SCRUBEXIF_SUMMARY` and validates required numeric counters. Missing, duplicated, malformed or inconsistent reporting is treated as failure. Exit status 1 with reported processing errors is treated as a controlled partial result: successfully changed remote copies are published with the same fingerprint and atomic-replacement checks as a fully successful run. Abnormal container exits publish no remote changes. Processing errors always produce an error notification, even when other JPEGs were scrubbed successfully.
 
 Desktop notifications report the numbers selected, examined and scrubbed, with skipped, errors, duplicates and unsupported counts when applicable. A mixed selection containing JPEGs plus non-JPEG files may show **Scrubbing complete** alongside an unsupported count; this does not mean the unsupported files were sanitized.
 
