@@ -520,6 +520,68 @@ def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> N
     assert "exited with rc=1 but reported no errors" in arguments[5]
 
 
+def test_wrapper_rejects_success_exit_with_reported_errors(tmp_path: Path) -> None:
+    """Successful status with summary errors cannot publish remote output.
+
+    Args:
+        tmp_path: Isolated test directory.
+
+    Returns:
+        None.
+    """
+    current_summary = _summary_line(
+        total=1,
+        jpeg_total=1,
+        failed=1,
+        errors=1,
+        examined=1,
+    )
+
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        0,
+        1,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert "exited successfully but reported 1 errors" in arguments[5]
+
+
+def test_wrapper_interruption_never_publishes_remote_output(tmp_path: Path) -> None:
+    """An interrupted container preserves its status and remote originals.
+
+    Args:
+        tmp_path: Isolated test directory.
+
+    Returns:
+        None.
+    """
+    current_summary = _summary_line(
+        errors=1,
+        run_errors=1,
+        interrupted=1,
+    )
+
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        130,
+        1,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 130
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert "container failed (rc=130); remote originals unchanged" in arguments[5]
+
+
 @pytest.mark.parametrize(
     "summary_line",
     [
@@ -530,6 +592,20 @@ def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> N
         f"{_summary_line()} future_counter=0",
         _summary_line().replace("errors=0", "errors=invalid"),
         _summary_line(total=1),
+        _summary_line(total=1, jpeg_total=1),
+        _summary_line(unsupported=1),
+        _summary_line(verified_duplicates=1),
+        _summary_line(errors=1),
+        _summary_line(
+            total=1,
+            jpeg_total=1,
+            duplicates_handled=1,
+            examined=1,
+        ),
+        _summary_line(published=1),
+        _summary_line(interrupted=2),
+        _summary_line(interrupted=1),
+        _summary_line(duration="invalid"),
         f"{_summary_line()}\n{_summary_line()}",
     ],
     ids=[
@@ -539,7 +615,16 @@ def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> N
         "duplicate-field",
         "unexpected-field",
         "non-numeric-field",
-        "inconsistent-counts",
+        "total-alias-mismatch",
+        "jpeg-terminal-mismatch",
+        "examined-mismatch",
+        "duplicate-fact-mismatch",
+        "error-mismatch",
+        "handled-duplicate-bound",
+        "published-bound",
+        "invalid-interrupted-value",
+        "interrupted-without-run-error",
+        "invalid-duration",
         "multiple-lines",
     ],
 )

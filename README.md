@@ -66,7 +66,10 @@ The displayed scripts come from `~/.local/share/nautilus/scripts` and other conf
 
 ## `scrubexif.sh` — containerized JPEG metadata scrubbing
 
-This Nautilus integration uses `per2jensen/scrubexif:latest` by default and runs scrubexif in `--clean-inline` mode: **selected JPEG originals are modified/replaced**. Test with disposable copies first. Non-JPEG files are reported as unsupported rather than sanitized.
+This Nautilus integration requires scrubexif 0.8.0 or newer and uses
+`per2jensen/scrubexif:latest` by default. It runs scrubexif in `--clean-inline`
+mode: **selected JPEG originals are modified/replaced**. Test with disposable
+copies first. Non-JPEG files are reported as unsupported rather than sanitized.
 
 ### Input validation
 
@@ -109,7 +112,15 @@ Temporary work files are cleaned during ordinary exit and handled SIGINT/SIGTERM
 
 ### Results and diagnostics
 
-The wrapper requires a machine-readable `SCRUBEXIF_SUMMARY` and validates required numeric counters. Missing, duplicated, malformed or inconsistent reporting is treated as failure. Exit status 1 with reported processing errors is treated as a controlled partial result: successfully changed remote copies are published with the same fingerprint and atomic-replacement checks as a fully successful run. Abnormal container exits publish no remote changes. Processing errors always produce an error notification, even when other JPEGs were scrubbed successfully.
+The wrapper requires a machine-readable `SCRUBEXIF_SUMMARY schema=2` and
+validates all required counters and reconciliation identities. Legacy schema-1,
+missing, unknown, duplicated, malformed, or inconsistent reporting is treated
+as failure; the wrapper never invents fallback values. Exit status 1 with
+reported processing errors is treated as a controlled partial result:
+successfully changed remote copies are published with the same fingerprint and
+atomic-replacement checks as a fully successful run. Abnormal container exits
+publish no remote changes. Processing errors always produce an error
+notification, even when other JPEGs were scrubbed successfully.
 
 Desktop notifications report the numbers selected, examined and scrubbed, with skipped, errors, duplicates and unsupported counts when applicable. A mixed selection containing JPEGs plus non-JPEG files may show **Scrubbing complete** alongside an unsupported count; this does not mean the unsupported files were sanitized.
 
