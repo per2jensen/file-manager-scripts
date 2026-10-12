@@ -7,8 +7,53 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "scrubexif.sh"
+
+
+def _summary_line(**overrides: int | str) -> str:
+    """Build a complete valid schema-2 summary with selected overrides.
+
+    Args:
+        **overrides: Field values to replace in the empty successful summary.
+
+    Returns:
+        One machine-readable schema-2 summary line.
+
+    Raises:
+        ValueError: If an unknown field is supplied.
+    """
+    fields: dict[str, int | str] = {
+        "schema": 2,
+        "total": 0,
+        "jpeg_total": 0,
+        "scrubbed": 0,
+        "duplicates_handled": 0,
+        "unsupported": 0,
+        "planned": 0,
+        "previewed": 0,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0,
+        "verified_duplicates": 0,
+        "duplicates_deleted": 0,
+        "duplicates_moved": 0,
+        "duplicates_unchanged": 0,
+        "duplicates_missing": 0,
+        "published": 0,
+        "run_errors": 0,
+        "interrupted": 0,
+        "examined": 0,
+        "duration": "0.100",
+    }
+    unknown = set(overrides) - set(fields)
+    if unknown:
+        raise ValueError(f"unknown summary fields: {sorted(unknown)}")
+    fields.update(overrides)
+    values = " ".join(f"{name}={value}" for name, value in fields.items())
+    return f"SCRUBEXIF_SUMMARY {values}"
 
 
 def _write_fake_notifier(binary_dir: Path, capture_path: Path) -> None:
@@ -36,14 +81,14 @@ def _write_fake_notifier(binary_dir: Path, capture_path: Path) -> None:
 
 def _run_notification(
     tmp_path: Path,
-    counts: tuple[int, int, int, int, int, int, int, int, int],
+    counts: tuple[int, int, int, int, int, int, int, int],
 ) -> list[str]:
     """Call the real notification function with a fake notifier executable.
 
     Args:
         tmp_path: Isolated directory for the executable and captured arguments.
         counts: Selected, total, scrubbed, skipped, errors, unsupported,
-            examined, duplicate-deleted, and duplicate-moved counts.
+            examined, and duplicate-handled counts.
 
     Returns:
         One captured notify-send argument per list item.
@@ -220,7 +265,7 @@ def test_notification_success_reports_compact_nonzero_counts(tmp_path: Path) -> 
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (11, 10, 10, 0, 0, 1, 11, 0, 0))
+    arguments = _run_notification(tmp_path, (11, 10, 10, 0, 0, 1, 11, 0))
 
     assert arguments[:4] == ["-u", "normal", "-i", "emblem-default"]
     assert arguments[4] == "scrubexif ✅ Scrubbing complete"
@@ -239,7 +284,7 @@ def test_notification_selected_examined_mismatch_is_warning(tmp_path: Path) -> N
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (3, 2, 2, 0, 0, 0, 2, 0, 0))
+    arguments = _run_notification(tmp_path, (3, 2, 2, 0, 0, 0, 2, 0))
 
     assert arguments[:4] == ["-u", "normal", "-i", "dialog-warning"]
     assert arguments[4] == "scrubexif ⚠️ Completed with warnings"
@@ -255,7 +300,7 @@ def test_notification_skipped_file_is_warning(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (2, 2, 1, 1, 0, 0, 2, 0, 0))
+    arguments = _run_notification(tmp_path, (2, 2, 1, 1, 0, 0, 2, 0))
 
     assert arguments[:4] == ["-u", "normal", "-i", "dialog-warning"]
     assert arguments[4] == "scrubexif ⚠️ Completed with warnings"
@@ -271,7 +316,7 @@ def test_notification_processing_error_is_critical(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (1, 1, 0, 0, 1, 0, 1, 0, 0))
+    arguments = _run_notification(tmp_path, (1, 1, 0, 0, 1, 0, 1, 0))
 
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
     assert arguments[4] == "scrubexif ❌ Completed with errors"
@@ -287,7 +332,7 @@ def test_notification_duplicate_only_is_informational(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (1, 1, 0, 0, 0, 0, 1, 0, 1))
+    arguments = _run_notification(tmp_path, (1, 1, 0, 0, 0, 0, 1, 1))
 
     assert arguments[:4] == ["-u", "low", "-i", "dialog-information"]
     assert arguments[4] == "scrubexif ℹ️ Duplicates handled"
@@ -303,11 +348,7 @@ def test_wrapper_uses_current_summary_instead_of_stale_log(tmp_path: Path) -> No
     Returns:
         None.
     """
-    current_summary = (
-        "SCRUBEXIF_SUMMARY total=0 scrubbed=0 skipped=0 errors=0 "
-        "duplicates_deleted=0 duplicates_moved=0 unsupported=1 examined=1 "
-        "duration=0.100"
-    )
+    current_summary = _summary_line(unsupported=1, examined=1)
     result, arguments = _run_wrapper(tmp_path, current_summary, 0, 1)
 
     assert result.returncode == 0, result.stderr
@@ -325,10 +366,12 @@ def test_wrapper_preserves_failed_docker_status(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    current_summary = (
-        "SCRUBEXIF_SUMMARY total=1 scrubbed=0 skipped=0 errors=1 "
-        "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
-        "duration=0.100"
+    current_summary = _summary_line(
+        total=1,
+        jpeg_total=1,
+        failed=1,
+        errors=1,
+        examined=1,
     )
     result, arguments = _run_wrapper(
         tmp_path,
@@ -356,10 +399,15 @@ def test_wrapper_remote_partial_error_publishes_only_changed_output(
     Returns:
         None.
     """
-    current_summary = (
-        "SCRUBEXIF_SUMMARY total=2 scrubbed=1 skipped=0 errors=1 "
-        "duplicates_deleted=0 duplicates_moved=0 unsupported=2 examined=4 "
-        "duration=0.100"
+    current_summary = _summary_line(
+        total=2,
+        jpeg_total=2,
+        scrubbed=1,
+        failed=1,
+        errors=1,
+        unsupported=2,
+        published=1,
+        examined=4,
     )
     result, arguments = _run_wrapper(
         tmp_path,
@@ -393,10 +441,12 @@ def test_wrapper_remote_concurrent_change_prevents_copy_back(tmp_path: Path) -> 
     Returns:
         None.
     """
-    current_summary = (
-        "SCRUBEXIF_SUMMARY total=1 scrubbed=1 skipped=0 errors=0 "
-        "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
-        "duration=0.100"
+    current_summary = _summary_line(
+        total=1,
+        jpeg_total=1,
+        scrubbed=1,
+        published=1,
+        examined=1,
     )
     result, arguments = _run_wrapper(
         tmp_path,
@@ -423,11 +473,7 @@ def test_wrapper_rejects_invalid_summary_counter(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    current_summary = (
-        "SCRUBEXIF_SUMMARY total=invalid scrubbed=0 skipped=0 errors=0 "
-        "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
-        "duration=0.100"
-    )
+    current_summary = _summary_line(total="invalid", jpeg_total=1, examined=1)
     result, arguments = _run_wrapper(
         tmp_path,
         current_summary,
@@ -440,7 +486,7 @@ def test_wrapper_rejects_invalid_summary_counter(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
-    assert "Invalid total count" in arguments[5]
+    assert "Invalid or inconsistent schema=2" in arguments[5]
 
 
 def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> None:
@@ -452,10 +498,12 @@ def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> N
     Returns:
         None.
     """
-    current_summary = (
-        "SCRUBEXIF_SUMMARY total=1 scrubbed=1 skipped=0 errors=0 "
-        "duplicates_deleted=0 duplicates_moved=0 unsupported=0 examined=1 "
-        "duration=0.100"
+    current_summary = _summary_line(
+        total=1,
+        jpeg_total=1,
+        scrubbed=1,
+        published=1,
+        examined=1,
     )
     result, arguments = _run_wrapper(
         tmp_path,
@@ -470,3 +518,53 @@ def test_wrapper_rejects_error_exit_without_reported_errors(tmp_path: Path) -> N
     assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
     assert "exited with rc=1 but reported no errors" in arguments[5]
+
+
+@pytest.mark.parametrize(
+    "summary_line",
+    [
+        "SCRUBEXIF_SUMMARY total=0 scrubbed=0 errors=0 duration=0.100",
+        _summary_line(schema=3),
+        _summary_line().replace(" published=0", ""),
+        f"{_summary_line()} errors=0",
+        f"{_summary_line()} future_counter=0",
+        _summary_line().replace("errors=0", "errors=invalid"),
+        _summary_line(total=1),
+        f"{_summary_line()}\n{_summary_line()}",
+    ],
+    ids=[
+        "legacy-schema",
+        "unknown-schema",
+        "missing-field",
+        "duplicate-field",
+        "unexpected-field",
+        "non-numeric-field",
+        "inconsistent-counts",
+        "multiple-lines",
+    ],
+)
+def test_wrapper_rejects_invalid_schema_two_summary(
+    tmp_path: Path,
+    summary_line: str,
+) -> None:
+    """Reject unsupported, malformed, or ambiguous summaries before copy-back.
+
+    Args:
+        tmp_path: Isolated test directory.
+        summary_line: Invalid summary emitted by the fake Docker command.
+
+    Returns:
+        None.
+    """
+    result, arguments = _run_wrapper(
+        tmp_path,
+        summary_line,
+        0,
+        1,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
