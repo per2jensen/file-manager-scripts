@@ -157,6 +157,20 @@ parse_schema_two_summary() {
     ' <<< "${summary_line}"
 }
 
+extract_summary_schema() {
+    local summary_line="${1:-}"
+    local schema_field=""
+    local schema_value=""
+
+    [[ "${summary_line}" == "SCRUBEXIF_SUMMARY "* ]] || return 1
+    schema_field="${summary_line#SCRUBEXIF_SUMMARY }"
+    schema_field="${schema_field%% *}"
+    [[ "${schema_field}" == schema=* ]] || return 1
+    schema_value="${schema_field#schema=}"
+    [[ "${schema_value}" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
+    printf '%s\n' "${schema_value}"
+}
+
 validate_count() {
     local name="${1:-}"
     local value="${2:-}"
@@ -254,7 +268,7 @@ main() {
     local file file_dir name canonical_dir fstype needs_copy=false
     local total_bytes=0 available_bytes run_as_uid="${RUN_AS_UID:-$(id -u)}"
     local run_as_gid="${RUN_AS_GID:-$(id -g)}"
-    local mount_dir docker_status tee_status summary_line parsed_summary
+    local mount_dir docker_status tee_status summary_line summary_schema parsed_summary
     local total scrubbed skipped errors unsupported examined duplicates_handled interrupted
     local image="${SCRUBEXIF_IMAGE:-per2jensen/scrubexif:latest}"
     local -a pipeline_status=()
@@ -354,7 +368,14 @@ main() {
     mapfile -t summary_lines < <(grep '^SCRUBEXIF_SUMMARY ' "$RUN_LOG" || true)
     ((${#summary_lines[@]} == 1)) || abort "Expected exactly one SCRUBEXIF_SUMMARY, got ${#summary_lines[@]}"
     summary_line="${summary_lines[0]}"
-    [[ "$summary_line" == "SCRUBEXIF_SUMMARY schema=2 "* ]] || abort "Unsupported scrubexif summary schema; expected schema=2"
+    summary_schema="$(extract_summary_schema "${summary_line}")" || \
+        abort "Malformed scrubexif summary schema; expected a numeric schema field before all counters"
+    if [[ "${summary_schema}" == "0" || "${summary_schema}" == "1" ]]; then
+        abort "scrubexif image upgrade required: image reports summary schema=${summary_schema}, but this wrapper requires schema=2"
+    fi
+    if [[ "${summary_schema}" != "2" ]]; then
+        abort "Nautilus wrapper upgrade required: scrubexif reports summary schema=${summary_schema}, but this wrapper supports schema=2"
+    fi
     parsed_summary="$(parse_schema_two_summary "$summary_line")" || abort "Invalid or inconsistent schema=2 scrubexif summary"
     read -r total scrubbed skipped errors unsupported examined duplicates_handled interrupted <<< "$parsed_summary"
     ((examined == ${#args[@]})) || abort "Examined $examined inputs, selected ${#args[@]}; refusing remote copy-back"

@@ -112,11 +112,14 @@ Temporary work files are cleaned during ordinary exit and handled SIGINT/SIGTERM
 
 ### Results and diagnostics
 
-The wrapper requires a machine-readable `SCRUBEXIF_SUMMARY schema=2` and
-validates all required counters and reconciliation identities. Legacy schema-1,
-missing, unknown, duplicated, malformed, or inconsistent reporting is treated
-as failure; the wrapper never invents fallback values. Exit status 1 with
-reported processing errors is treated as a controlled partial result:
+The wrapper supports exactly the machine-readable `SCRUBEXIF_SUMMARY schema=2`
+contract and validates all required counters and reconciliation identities. A
+newer numeric schema is rejected with a critical notification telling the user
+to upgrade the Nautilus wrapper. An older numeric schema is rejected with a
+critical notification telling the user to upgrade the scrubexif image. Missing,
+nonnumeric, duplicated, malformed, or internally inconsistent reporting is
+also treated as failure; the wrapper never invents fallback values. Exit status
+1 with reported processing errors is treated as a controlled partial result:
 successfully changed remote copies are published with the same fingerprint and
 atomic-replacement checks as a fully successful run. Abnormal container exits
 publish no remote changes. Processing errors always produce an error

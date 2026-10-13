@@ -665,10 +665,85 @@ def test_wrapper_interruption_never_publishes_remote_output(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize(
+    ("schema", "expected_message"),
+    [
+        (
+            1,
+            "scrubexif image upgrade required: image reports summary schema=1, "
+            "but this wrapper requires schema=2",
+        ),
+        (
+            3,
+            "Nautilus wrapper upgrade required: scrubexif reports summary schema=3, "
+            "but this wrapper supports schema=2",
+        ),
+    ],
+    ids=["older-image", "newer-image"],
+)
+def test_wrapper_reports_required_upgrade_for_unsupported_schema(
+    tmp_path: Path,
+    schema: int,
+    expected_message: str,
+) -> None:
+    """An unsupported numeric schema identifies the component to upgrade.
+
+    Args:
+        tmp_path: Isolated test directory.
+        schema: Unsupported schema emitted by the fake Docker command.
+        expected_message: Actionable notification body.
+
+    Returns:
+        None.
+    """
+    result, arguments = _run_wrapper(
+        tmp_path,
+        _summary_line(schema=schema),
+        0,
+        1,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert arguments[4] == "scrubexif ❌"
+    assert arguments[5] == expected_message
+    assert expected_message in result.stderr
+
+
+def test_wrapper_reports_malformed_summary_schema(tmp_path: Path) -> None:
+    """A nonnumeric schema produces a precise critical notification.
+
+    Args:
+        tmp_path: Isolated test directory.
+
+    Returns:
+        None.
+    """
+    result, arguments = _run_wrapper(
+        tmp_path,
+        _summary_line().replace("schema=2", "schema=next"),
+        0,
+        1,
+        filesystem_type="fuse.sshfs",
+        mutate_selected_index=0,
+    )
+
+    assert result.returncode == 1
+    assert (tmp_path / "input" / "selected-0.jpg").read_bytes() == b"original-0"
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert arguments[4] == "scrubexif ❌"
+    assert arguments[5] == (
+        "Malformed scrubexif summary schema; expected a numeric schema field "
+        "before all counters"
+    )
+
+
+@pytest.mark.parametrize(
     "summary_line",
     [
         "SCRUBEXIF_SUMMARY total=0 scrubbed=0 errors=0 duration=0.100",
-        _summary_line(schema=3),
         _summary_line().replace(" published=0", ""),
         f"{_summary_line()} errors=0",
         f"{_summary_line()} future_counter=0",
@@ -692,7 +767,6 @@ def test_wrapper_interruption_never_publishes_remote_output(tmp_path: Path) -> N
     ],
     ids=[
         "legacy-schema",
-        "unknown-schema",
         "missing-field",
         "duplicate-field",
         "unexpected-field",
