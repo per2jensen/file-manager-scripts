@@ -124,7 +124,18 @@ notification, even when other JPEGs were scrubbed successfully.
 
 Desktop notifications report the numbers selected, examined and scrubbed, with skipped, errors, duplicates and unsupported counts when applicable. A mixed selection containing JPEGs plus non-JPEG files may show **Scrubbing complete** alongside an unsupported count; this does not mean the unsupported files were sanitized.
 
-The default log is `/tmp/scrubexif.log` (override with `SCRUBEXIF_LOGFILE`). The image can be overridden with `SCRUBEXIF_IMAGE`; `RUN_AS_UID`, `RUN_AS_GID` and `TMPDIR` are also supported. For reproducible testing, consider using a specific versioned image tag rather than `latest`.
+Neutral completion notifications—**Nothing processed** (including an
+unsupported-only selection), **Duplicates handled**, and **Nothing changed**—use
+normal urgency by default so that a user waiting for completion receives a
+visible banner. Set `SCRUBEXIF_INFORMATION_URGENCY` to `low`, `normal`, or
+`critical` to override the urgency for those three results only. Successful
+scrubbing and warning notifications remain at normal urgency, while error
+notifications remain critical. An invalid value stops the wrapper before
+Docker runs. The override must be present in the environment inherited by
+Nautilus; exporting it later in an unrelated terminal does not change an
+already-running Nautilus process.
+
+The default log is `/tmp/scrubexif.log` (override with `SCRUBEXIF_LOGFILE`). The image can be overridden with `SCRUBEXIF_IMAGE`; `SCRUBEXIF_INFORMATION_URGENCY`, `RUN_AS_UID`, `RUN_AS_GID` and `TMPDIR` are also supported. For reproducible testing, consider using a specific versioned image tag rather than `latest`.
 
 
 #### Example of `success` notification

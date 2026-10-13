@@ -82,6 +82,8 @@ def _write_fake_notifier(binary_dir: Path, capture_path: Path) -> None:
 def _run_notification(
     tmp_path: Path,
     counts: tuple[int, int, int, int, int, int, int, int],
+    *,
+    information_urgency: str | None = None,
 ) -> list[str]:
     """Call the real notification function with a fake notifier executable.
 
@@ -89,6 +91,7 @@ def _run_notification(
         tmp_path: Isolated directory for the executable and captured arguments.
         counts: Selected, total, scrubbed, skipped, errors, unsupported,
             examined, and duplicate-handled counts.
+        information_urgency: Optional neutral-result urgency override.
 
     Returns:
         One captured notify-send argument per list item.
@@ -106,6 +109,9 @@ def _run_notification(
     environment["PATH"] = f"{binary_dir}:{environment['PATH']}"
     environment["NOTIFY_CAPTURE"] = str(capture_path)
     environment["SCRUBEXIF_LOGFILE"] = str(tmp_path / "scrubexif.log")
+    environment.pop("SCRUBEXIF_INFORMATION_URGENCY", None)
+    if information_urgency is not None:
+        environment["SCRUBEXIF_INFORMATION_URGENCY"] = information_urgency
     command = [
         "bash",
         "-c",
@@ -127,6 +133,7 @@ def _run_wrapper(
     filesystem_type: str = "ext4",
     mutate_selected_index: int | None = None,
     mutate_original_index: int | None = None,
+    information_urgency: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """Run the wrapper with real files and controlled command adapters.
 
@@ -140,6 +147,7 @@ def _run_wrapper(
             or None to leave all mounted files unchanged.
         mutate_original_index: Selected original changed while Docker runs, or
             None to leave originals untouched outside the mounted directory.
+        information_urgency: Optional neutral-result urgency override.
 
     Returns:
         Completed wrapper process and captured notification arguments.
@@ -222,6 +230,7 @@ def _run_wrapper(
         encoding="utf-8",
     )
     environment = os.environ.copy()
+    environment.pop("SCRUBEXIF_INFORMATION_URGENCY", None)
     environment.update(
         {
             "PATH": f"{binary_dir}:{environment['PATH']}",
@@ -245,6 +254,8 @@ def _run_wrapper(
             "NAUTILUS_SCRIPT_SELECTED_FILE_PATHS": "\n".join(selected_paths),
         }
     )
+    if information_urgency is not None:
+        environment["SCRUBEXIF_INFORMATION_URGENCY"] = information_urgency
     result = subprocess.run(
         ["bash", str(SCRIPT)],
         check=False,
@@ -265,7 +276,11 @@ def test_notification_success_reports_compact_nonzero_counts(tmp_path: Path) -> 
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (11, 10, 10, 0, 0, 1, 11, 0))
+    arguments = _run_notification(
+        tmp_path,
+        (11, 10, 10, 0, 0, 1, 11, 0),
+        information_urgency="critical",
+    )
 
     assert arguments[:4] == ["-u", "normal", "-i", "emblem-default"]
     assert arguments[4] == "scrubexif ✅ Scrubbing complete"
@@ -300,7 +315,11 @@ def test_notification_skipped_file_is_warning(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (2, 2, 1, 1, 0, 0, 2, 0))
+    arguments = _run_notification(
+        tmp_path,
+        (2, 2, 1, 1, 0, 0, 2, 0),
+        information_urgency="critical",
+    )
 
     assert arguments[:4] == ["-u", "normal", "-i", "dialog-warning"]
     assert arguments[4] == "scrubexif ⚠️ Completed with warnings"
@@ -316,7 +335,11 @@ def test_notification_processing_error_is_critical(tmp_path: Path) -> None:
     Returns:
         None.
     """
-    arguments = _run_notification(tmp_path, (1, 1, 0, 0, 1, 0, 1, 0))
+    arguments = _run_notification(
+        tmp_path,
+        (1, 1, 0, 0, 1, 0, 1, 0),
+        information_urgency="low",
+    )
 
     assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
     assert arguments[4] == "scrubexif ❌ Completed with errors"
@@ -334,9 +357,38 @@ def test_notification_duplicate_only_is_informational(tmp_path: Path) -> None:
     """
     arguments = _run_notification(tmp_path, (1, 1, 0, 0, 0, 0, 1, 1))
 
-    assert arguments[:4] == ["-u", "low", "-i", "dialog-information"]
+    assert arguments[:4] == ["-u", "normal", "-i", "dialog-information"]
     assert arguments[4] == "scrubexif ℹ️ Duplicates handled"
     assert arguments[5] == "Examined 1/1 • scrubbed 0/1 JPEG • duplicates 1"
+
+
+@pytest.mark.parametrize("information_urgency", ["low", "critical"])
+def test_notification_neutral_urgency_accepts_supported_override(
+    tmp_path: Path,
+    information_urgency: str,
+) -> None:
+    """A supported override controls only neutral notification urgency.
+
+    Args:
+        tmp_path: Isolated test directory.
+        information_urgency: Supported urgency under test.
+
+    Returns:
+        None.
+    """
+    arguments = _run_notification(
+        tmp_path,
+        (1, 1, 0, 0, 0, 0, 1, 1),
+        information_urgency=information_urgency,
+    )
+
+    assert arguments[:4] == [
+        "-u",
+        information_urgency,
+        "-i",
+        "dialog-information",
+    ]
+    assert arguments[4] == "scrubexif ℹ️ Duplicates handled"
 
 
 def test_wrapper_uses_current_summary_instead_of_stale_log(tmp_path: Path) -> None:
@@ -352,9 +404,39 @@ def test_wrapper_uses_current_summary_instead_of_stale_log(tmp_path: Path) -> No
     result, arguments = _run_wrapper(tmp_path, current_summary, 0, 1)
 
     assert result.returncode == 0, result.stderr
-    assert arguments[:4] == ["-u", "low", "-i", "dialog-information"]
+    assert arguments[:4] == ["-u", "normal", "-i", "dialog-information"]
     assert arguments[4] == "scrubexif ℹ️ Nothing processed"
     assert "unsupported 1" in arguments[5]
+
+
+@pytest.mark.parametrize("information_urgency", ["", "urgent"])
+def test_wrapper_rejects_invalid_information_urgency_before_docker(
+    tmp_path: Path,
+    information_urgency: str,
+) -> None:
+    """An invalid urgency fails before image processing starts.
+
+    Args:
+        tmp_path: Isolated test directory.
+        information_urgency: Invalid urgency under test.
+
+    Returns:
+        None.
+    """
+    current_summary = _summary_line(unsupported=1, examined=1)
+    result, arguments = _run_wrapper(
+        tmp_path,
+        current_summary,
+        0,
+        1,
+        information_urgency=information_urgency,
+    )
+
+    assert result.returncode == 1
+    assert "SCRUBEXIF_INFORMATION_URGENCY must be low, normal, or critical" in result.stderr
+    assert "SCRUBEXIF_SUMMARY" not in result.stdout
+    assert arguments[:4] == ["-u", "critical", "-i", "dialog-error"]
+    assert "SCRUBEXIF_INFORMATION_URGENCY" in arguments[5]
 
 
 def test_wrapper_preserves_failed_docker_status(tmp_path: Path) -> None:

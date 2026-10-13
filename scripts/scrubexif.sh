@@ -36,11 +36,17 @@
 #
 # Environment: SCRUBEXIF_IMAGE (default per2jensen/scrubexif:latest),
 # RUN_AS_UID, RUN_AS_GID, SCRUBEXIF_LOGFILE, TMPDIR.
+# SCRUBEXIF_INFORMATION_URGENCY controls only neutral completion notifications:
+# "Nothing processed", "Duplicates handled", and "Nothing changed". Allowed
+# values are low, normal, and critical; the default is normal so a waiting user
+# receives a visible banner. Success and warning notifications remain normal,
+# and error notifications remain critical.
 # Requires: docker, findmnt, sha256sum, cmp, sync (coreutils), notify-send.
 #
 set -euo pipefail
 
 LOGFILE="${SCRUBEXIF_LOGFILE:-/tmp/scrubexif.log}"
+INFORMATION_URGENCY="${SCRUBEXIF_INFORMATION_URGENCY-normal}"
 MAX_LOG=102400
 HALF_LOG=51200
 
@@ -160,6 +166,19 @@ validate_count() {
     fi
 }
 
+validate_information_urgency() {
+    local urgency="${1:-}"
+
+    case "${urgency}" in
+        low|normal|critical)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 send_summary_notification() {
     local selected="${1:-}"
     local total="${2:-}"
@@ -209,17 +228,20 @@ send_summary_notification() {
     fi
 
     if ((total == 0)); then
-        send_notification low dialog-information "scrubexif ℹ️ Nothing processed" "${body}"
+        send_notification "${INFORMATION_URGENCY}" dialog-information \
+            "scrubexif ℹ️ Nothing processed" "${body}"
         return
     fi
 
     if ((scrubbed == 0 && duplicates_handled > 0)); then
-        send_notification low dialog-information "scrubexif ℹ️ Duplicates handled" "${body}"
+        send_notification "${INFORMATION_URGENCY}" dialog-information \
+            "scrubexif ℹ️ Duplicates handled" "${body}"
         return
     fi
 
     if ((scrubbed == 0)); then
-        send_notification low dialog-information "scrubexif ℹ️ Nothing changed" "${body}"
+        send_notification "${INFORMATION_URGENCY}" dialog-information \
+            "scrubexif ℹ️ Nothing changed" "${body}"
         return
     fi
 
@@ -241,6 +263,9 @@ main() {
 
     rotate_log_if_needed
     log "===>>> $(date --iso-8601=seconds) - running $0"
+    if ! validate_information_urgency "${INFORMATION_URGENCY}"; then
+        abort "SCRUBEXIF_INFORMATION_URGENCY must be low, normal, or critical; got '${INFORMATION_URGENCY}'"
+    fi
     command -v docker >/dev/null || abort "docker is not installed"
     command -v findmnt >/dev/null || abort "findmnt is not installed"
     command -v sha256sum >/dev/null || abort "sha256sum is not installed"
